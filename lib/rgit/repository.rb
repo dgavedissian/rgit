@@ -27,12 +27,12 @@ module Rgit
       end
     end
 
-    def path(path, mkdir=false)
-      File.join(self.gitdir, path)
+    def path(*path, mkdir=false)
+      File.join(@gitdir, *path)
     end
 
-    def file(path, mode, mkdir=false, &block)
-      path_in_repo = self.path(path, mkdir)
+    def file(*path, mode, mkdir=false, &block)
+      path_in_repo = self.path(*path, mkdir)
       File.open(path_in_repo, mode, &block)
     end
 
@@ -50,19 +50,24 @@ module Rgit
         end
 
         repo = Repository.new(worktree, true)
+
+        repo.path("branches", true)
+        repo.path("objects", true)
+        repo.path("refs", "tags", true)
+        repo.path("refs", "heads", true)
         
         # .git/description
-        self.file("description", "w") do |f|
+        repo.file("description", "w") do |f|
           f.write("Unnamed repository.")
         end
 
         # .git/HEAD
-        self.file("HEAD", "w") do |f|
+        repo.file("HEAD", "w") do |f|
           f.write("ref: refs/head/master\n")
         end
 
         # Default config.
-        self.file("config", "w") do |f|
+        repo.file("config", "w") do |f|
           repo.config = IniParse.gen do |doc|
             doc.section("core") do |core|
               vehicle.option("repositoryformatversion", 0)
@@ -72,6 +77,7 @@ module Rgit
           end
           f.write(repo.config.to_ini)
         end
+        
         repo
       end
     end

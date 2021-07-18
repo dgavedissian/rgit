@@ -5,9 +5,13 @@ require 'main'
 
 Main {
   mode 'init' do
-    puts self.class
+    argument 'path'
     def run()
-      puts 'installing...'
+      if params["path"].given?
+        path = params['path'].value
+        Rgit::Repository.create(path)
+        puts "Created repository at #{path}"
+      end
     end
   end
 }
