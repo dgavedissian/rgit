@@ -3,7 +3,6 @@ require "iniparse"
 module Rgit
   class Repository
     attr_accessor :config
-    private :config=
 
     def initialize(worktree, new_repository=false)
       @worktree = worktree
@@ -27,12 +26,19 @@ module Rgit
       end
     end
 
-    def path(*path, mkdir=false)
+    def path(*path)
       File.join(@gitdir, *path)
     end
 
-    def file(*path, mode, mkdir=false, &block)
-      path_in_repo = self.path(*path, mkdir)
+    def create_dir(*path)
+      FileUtils.mkdir_p(self.path(*path))
+    end
+
+    def file(*path, mode: "r", mkdir: false, &block)
+      if mkdir
+        self.create_dir(*path[0...-1])
+      end
+      path_in_repo = self.path(*path)
       File.open(path_in_repo, mode, &block)
     end
 
@@ -51,28 +57,28 @@ module Rgit
 
         repo = Repository.new(worktree, true)
 
-        repo.path("branches", true)
-        repo.path("objects", true)
-        repo.path("refs", "tags", true)
-        repo.path("refs", "heads", true)
+        repo.create_dir("branches")
+        repo.create_dir("objects")
+        repo.create_dir("refs", "tags")
+        repo.create_dir("refs", "heads")
         
         # .git/description
-        repo.file("description", "w") do |f|
+        repo.file("description", mode: "w") do |f|
           f.write("Unnamed repository.")
         end
 
         # .git/HEAD
-        repo.file("HEAD", "w") do |f|
+        repo.file("HEAD", mode: "w") do |f|
           f.write("ref: refs/head/master\n")
         end
 
         # Default config.
-        repo.file("config", "w") do |f|
+        repo.file("config", mode: "w") do |f|
           repo.config = IniParse.gen do |doc|
             doc.section("core") do |core|
-              vehicle.option("repositoryformatversion", 0)
-              vehicle.option("filemode", false)
-              vehicle.option("bare", false)
+              core.option("repositoryformatversion", 0)
+              core.option("filemode", false)
+              core.option("bare", false)
             end
           end
           f.write(repo.config.to_ini)
@@ -80,6 +86,20 @@ module Rgit
         
         repo
       end
+      
+      def find(path = ".")
+        path = File.expand_path(path)
+        if File.directory?(File.join(path, ".git"))
+          return Repository.new(path)
+        else
+          parent = File.expand_path(File.join(path, ".."))
+          if path == parent
+            # Base case: we've hit the root path.
+            return nil
+          else
+            return find(parent)
+          end
+        end
     end
   end
 end
