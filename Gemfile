@@ -1,4 +1,10 @@
-source 'https://rubygems.org'
+# frozen_string_literal: true
 
-gem 'iniparse', '~> 1.4', '>= 1.4.2'
-gem 'main', '~> 6.1'
+source "https://rubygems.org"
+
+# Specify your gem's dependencies in rgit.gemspec
+gemspec
+
+gem "rake", "~> 13.0"
+
+gem "rspec", "~> 3.0"

@@ -100,6 +100,7 @@ module Rgit
             return find(parent)
           end
         end
+      end
     end
   end
 end
