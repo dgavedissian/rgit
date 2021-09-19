@@ -66,6 +66,63 @@ module Rgit
     end
   end
 
+  class Tree < Object
+    class Leaf
+      attr_accessor :mode, :path, :sha
+
+      def initialize(mode, path, sha)
+        @mode = mode
+        @path = path
+        @sha = sha
+      end
+    end
+
+    attr_accessor :items
+
+    def type
+      "tree"
+    end
+
+    def serialize
+      result = ""
+      @items.each do |i|
+        # We need to decode the SHA string to binary.
+        sha = [i.sha].pack("H*")
+        result << "#{i.mode} #{i.path}\0#{sha}"
+      end
+      result
+    end
+
+    def deserialize(data)
+      def tree_parse(data, start)
+        x = data.index(" ", start)
+        raise "Unknown error" unless x - start == 5 || x - start == 6
+
+        # Mode.
+        mode = data[start...x]
+
+        # Path.
+        y = data.index("\0", x)
+        path = data[x + 1...y]
+
+        # SHA. 20 bytes.
+        # unpack("H*") encodes the binary SHA value as a string.
+        # It always returns a singleton list, hence why we index 0.
+        sha = data[y + 1...y + 21].unpack("H*")[0]
+
+        return y + 21, Leaf.new(mode, path, sha)
+      end
+
+      pos = 0
+      max = data.length
+      @items = []
+      while pos < max
+        pos, tree_data = tree_parse(data, pos)
+        @items << tree_data
+      end
+    end
+  end
+
   class << self
     def object_create(type, data, repo)
       object_class = case type
