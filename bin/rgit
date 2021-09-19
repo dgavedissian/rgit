@@ -22,8 +22,8 @@ Main {
     argument 'object'
     def run()
       repo = Rgit::Repo.find
-      file = Rgit::object_read(repo, Rgit::object_find(repo, params["object"].value, type=params["type"].value))
-      $stdout.write(file.serialize) 
+      object = Rgit::object_read(repo, Rgit::object_find(repo, params["object"].value, type=params["type"].value))
+      $stdout.write(object.serialize)
     end
   end
 
@@ -39,8 +39,42 @@ Main {
       data = File.read(params["file"].value)
       type = params["type"].value
       object = Rgit::object_create(type, data, repo)
-      raise "Unknown type #{type}!" if object == nil
+      raise "Unknown type #{type}!" if object.nil?
       puts Rgit::object_write(object, update_repo=false)
+    end
+  end
+
+  mode 'log' do
+    argument('commit') {
+      default 'HEAD'
+    }
+    def run
+      repo = Rgit::Repo.find
+
+      def visit_commit(repo, sha, seen)
+        return if seen.key?(sha)
+        seen[sha] = true
+
+        commit = Rgit::object_read(repo, sha)
+        raise "#{sha} is not a commit, but instead an instance of #{commit.class}!" unless commit.class == Rgit::Commit
+
+        # Display commit.
+        puts "commit #{sha}"
+        puts "author: #{commit.data["author"]}"
+        puts
+        puts "\t#{commit.message}"
+        puts
+
+        # Base case: the initial commit.
+        return if commit.parents.nil?
+
+        # Parents
+        commit.parents.each do |p|
+          visit_commit(repo, p, seen)
+        end
+      end
+
+      visit_commit(repo, Rgit::object_find(repo, params["commit"].value), {})
     end
   end
 
