@@ -11,9 +11,36 @@ Main {
     def run()
       if params["path"].given?
         path = params['path'].value
-        Rgit::Repository.create(path)
+        Rgit::Repo.create(path)
         puts "Created repository at #{path}"
       end
+    end
+  end
+
+  mode 'cat-file' do
+    argument 'type'
+    argument 'object'
+    def run()
+      repo = Rgit::Repo.find
+      file = Rgit::object_read(repo, Rgit::object_find(repo, params["object"].value, type=params["type"].value))
+      $stdout.write(file.serialize) 
+    end
+  end
+
+  mode 'hash-object' do
+    option('write', 'w')
+    option('type', 't') {
+      required
+      argument_required
+    }
+    argument 'file'
+    def run()
+      repo = params["write"].given? ? Rgit::Repo.find : nil
+      data = File.read(params["file"].value)
+      type = params["type"].value
+      object = Rgit::object_create(type, data, repo)
+      raise "Unknown type #{type}!" if object == nil
+      puts Rgit::object_write(object, update_repo=false)
     end
   end
 

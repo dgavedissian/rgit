@@ -31,6 +31,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'iniparse', '~> 1.4', '>= 1.4.2'
   spec.add_dependency 'main', '~> 6.1'
+  # spec.add_dependency ''
 
   # For more information and examples about making a new gem, checkout our
   # guide at: https://bundler.io/guides/creating_gem.html

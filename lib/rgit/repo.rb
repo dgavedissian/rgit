@@ -1,7 +1,7 @@
 require "iniparse"
 
 module Rgit
-  class Repository
+  class Repo
     attr_accessor :config
 
     def initialize(worktree, new_repository=false)
@@ -10,7 +10,7 @@ module Rgit
 
       return if new_repository
 
-      if !force && !File.directory?(@gitdir)
+      if !File.directory?(@gitdir)
         raise "#{@gitdir} is not a git repository"
       end
 
@@ -55,7 +55,7 @@ module Rgit
           Dir.mkdir(worktree)
         end
 
-        repo = Repository.new(worktree, true)
+        repo = Repo.new(worktree, true)
 
         repo.create_dir("branches")
         repo.create_dir("objects")
@@ -90,7 +90,7 @@ module Rgit
       def find(path = ".")
         path = File.expand_path(path)
         if File.directory?(File.join(path, ".git"))
-          return Repository.new(path)
+          return Repo.new(path)
         else
           parent = File.expand_path(File.join(path, ".."))
           if path == parent
