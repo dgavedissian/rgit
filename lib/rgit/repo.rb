@@ -43,6 +43,12 @@ module Rgit
       File.open(path_in_repo, mode, &block)
     end
 
+    def ref_create(ref, sha)
+      file("refs", ref, mode: "w") do |f|
+        f.write(sha + "\n")
+      end
+    end
+
     def ref_resolve(ref)
       data = file(ref) { |f| f.read[...-1] }
       if data.start_with?("ref:")
@@ -65,6 +71,22 @@ module Rgit
       end
 
       result
+    end
+
+    def create_tag(name, ref, annotation=nil)
+      sha = Rgit::Object.find(self, ref)
+
+      if !annotation.nil?
+        tag = Rgit::Tag.new(self)
+        tag.data["object"] = sha
+        tag.data["type"] = "commit"
+        tag.data["tag"] = name
+        tag.data["tagger"] = annotation.author
+        tag.data[""] = annotation.message
+        ref_create("tags/#{name}", Rgit::Object.write(tag, update_repo: true))
+      else
+        ref_create("tags/#{name}", sha)
+      end
     end
 
     class << self

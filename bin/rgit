@@ -5,6 +5,19 @@ require "bundler/setup"
 require "rgit"
 require "main"
 
+def show_ref(refs, prefix="", with_hash: true)
+  refs.each do |k, v|
+    ref_path = prefix != "" ? "#{prefix}/#{k}" : "#{k}"
+    if v.is_a? String
+      print "#{v} " if with_hash
+      print "refs/" if prefix != ""
+      puts "#{ref_path}"
+    else
+      show_ref(v, ref_path)
+    end
+  end
+end
+
 Main {
   mode 'init' do
     argument 'path'
@@ -40,7 +53,7 @@ Main {
       type = params["type"].value
       object = Rgit::Object.create(type, repo, data)
       raise "Unknown type #{type}!" if object.nil?
-      puts Rgit::Object.write(object, update_repo=false)
+      puts Rgit::Object.write(object, update_repo: false)
     end
   end
 
@@ -60,20 +73,6 @@ Main {
   mode 'show-ref' do
     def run
       repo = Rgit::Repo.find
-
-      def show_ref(refs, prefix="")
-        refs.each do |k, v|
-          ref_path = prefix != "" ? "#{prefix}/#{k}" : "#{k}"
-          if v.is_a? String
-            print "#{v} "
-            print "refs/" if prefix != ""
-            puts "#{ref_path}"
-          else
-            show_ref(v, ref_path)
-          end
-        end
-      end
-
       show_ref(repo.ref_list)
     end
   end
@@ -92,7 +91,7 @@ Main {
       out_dir = params["path"].value
       if Dir.exists?(out_dir)
         raise "#{out_dir} is not a directory." if !File.directory?(out_dir)
-        raise "#{out_dir} not empty." if !Dir.children(out_dir).empty?
+        raise "#{out_dir} not empty." if !Dir.empty?(out_dir)
       else
         Dir.mkdir(out_dir)
       end
@@ -149,6 +148,42 @@ Main {
       end
 
       visit_commit(repo, Rgit::Object.find(repo, params["commit"].value), {})
+    end
+  end
+
+  mode 'tag' do
+    option('annotated', 'a')
+    option('msg', 'm') {
+    }
+    argument('name') {
+      optional
+    }
+    argument('object') {
+      default 'HEAD'
+    }
+    def run
+      repo = Rgit::Repo.find
+
+      annotation = nil
+      if params["name"].given?
+        if params["annotated"].given? || params["msg"].given?
+          raise "Expected -m to be provided to 'tag' we're creating an annotated tag." unless params["msg"].given?
+          annotation = Rgit::Annotation.new(message: params["msg"].value)
+        end
+        repo.create_tag(params["name"].value, params["object"].value, annotation)
+      else
+        refs = repo.ref_list
+        show_ref(refs["tags"], with_hash: false)
+      end
+    end
+  end
+
+  mode 'branch' do
+    def run
+      repo = Rgit::Repo.find
+
+      refs = repo.ref_list
+      show_ref(refs["heads"], with_hash: false)
     end
   end
 

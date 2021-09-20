@@ -28,14 +28,73 @@ module Rgit
         object_types = {
           "commit" => Rgit::Commit,
           "tree" => Rgit::Tree,
-          # "tag" => Rgit::Tag,
+           "tag" => Rgit::Tag,
           "blob" => Rgit::Blob
         }
         object_types[type].new(repo, data) if object_types.key?(type)
       end
 
+      # Resolve 'name' to an object hash in 'repo'
+      # It is aware of:
+      # - HEAD
+      # - short and long hashes
+      # - tags
+      # - branches
+      # - remote branches
+      def resolve(repo, name)
+        name = name.strip
+
+        # Empty name.
+        return [] if name.empty?
+
+        # HEAD
+        return [repo.ref_resolve("HEAD")] if name == "HEAD"
+
+        # short or long hashes.
+        name.downcase!
+        if /^[0-9A-Fa-f]{4,40}$/ =~ name
+          # A complete hash.
+          return [name] if name.length == 40
+
+          # An incomplete short hash.
+          prefix = name[0...2]
+          path = repo.path("objects", prefix)
+          if File.exist?(path)
+            remainder = name[2...]
+            return Dir.children(path)
+              .select { |incomplete_hash| incomplete_hash.start_with?(remainder) }
+              .map { |incomplete_hash| prefix + incomplete_hash }
+          end
+        end
+
+        # tags and branches
+        # TODO
+        
+        return []
+      end
+
       def find(repo, name, type=nil, follow=true)
-        name
+        candidates = resolve(repo, name)
+        raise "No such reference #{name}" if candidates.empty?
+        raise "Ambiguous reference #{name}: Candidates are:\n#{candidates}" if candidates.length > 1
+        sha = candidates[0]
+        return sha if type.nil?
+
+        # Follow the object refs.
+        while true
+          object = read(repo, sha)
+          return sha if object.type == type
+          return nil if !follow
+
+          # Follow tags.
+          if object.is_a? Rgit::Tag
+            sha = object.data["object"]
+          elsif object.is_a? Rgit::Commit && type == "tree"
+            sha = object.data["tree"]
+          else
+            return nil
+          end
+        end
       end
 
       def read(repo, sha)
@@ -59,7 +118,7 @@ module Rgit
         nil
       end
 
-      def write(object, update_repo=true)
+      def write(object, update_repo: true)
         data = object.serialize
         data = "#{object.type} #{data.length}\0" + data 
         sha = Digest::SHA1.hexdigest data
@@ -75,7 +134,7 @@ module Rgit
     end
   end
 
-  class Blob < Object
+  class Blob < Rgit::Object
     def type
       "blob"
     end
@@ -91,12 +150,17 @@ module Rgit
     end
   end
 
-  class Commit < Object
+  class Commit < Rgit::Object
     def type
       "commit"
     end
 
     attr_accessor :data
+
+    def initialize(repo, data = nil)
+      @data = {}
+      super(repo, data)
+    end
 
     def parents
       if @data.key?("parent")
@@ -120,7 +184,7 @@ module Rgit
     end
   end
 
-  class Tree < Object
+  class Tree < Rgit::Object
     class Leaf
       attr_accessor :mode, :path, :sha
 
@@ -173,6 +237,12 @@ module Rgit
         pos, tree_data = tree_parse(data, pos)
         @items << tree_data
       end
+    end
+  end
+
+  class Tag < Commit
+    def type
+      "blob"
     end
   end
 
