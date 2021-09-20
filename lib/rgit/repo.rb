@@ -1,4 +1,5 @@
 require "iniparse"
+require "pathname"
 
 module Rgit
   class Repo
@@ -40,6 +41,30 @@ module Rgit
       end
       path_in_repo = self.path(*path)
       File.open(path_in_repo, mode, &block)
+    end
+
+    def ref_resolve(ref)
+      data = file(ref) { |f| f.read[...-1] }
+      if data.start_with?("ref:")
+        ref_resolve(data[5...])
+      else
+        data
+      end
+    end
+
+    def ref_list(path=nil)
+      path = self.path("refs") if path.nil?
+      result = {}
+      Dir.children(path).sort.each do |f|
+        full_path = File.join(path, f)
+        if File.directory?(full_path)
+          result[f] = ref_list(full_path)
+        else
+          result[f] = ref_resolve(Pathname(full_path).relative_path_from(@gitdir))
+        end
+      end
+
+      result
     end
 
     class << self

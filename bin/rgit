@@ -57,6 +57,27 @@ Main {
     end
   end
 
+  mode 'show-ref' do
+    def run
+      repo = Rgit::Repo.find
+
+      def show_ref(refs, prefix="")
+        refs.each do |k, v|
+          ref_path = prefix != "" ? "#{prefix}/#{k}" : "#{k}"
+          if v.is_a? String
+            print "#{v} "
+            print "refs/" if prefix != ""
+            puts "#{ref_path}"
+          else
+            show_ref(v, ref_path)
+          end
+        end
+      end
+
+      show_ref(repo.ref_list)
+    end
+  end
+
   mode 'checkout' do
     argument 'commit'
     argument 'path'
