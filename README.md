@@ -1,38 +1,30 @@
 # Rgit
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/rgit`. To experiment with that code, run `bin/console` for an interactive prompt.
+A reimplementation of some Git commands using Ruby. The following commands are implemented:
 
-TODO: Delete this and the text above, and describe your gem
+- `init`
+- `checkout` (slightly modified - 2nd parameter specifies directory to write files to, must be empty)
+- `log`
+- `tag` (listing tags and creating a tag, either annotated or not)
+- `branch` (listing branches only)
+- `help`
+- `cat-file`
+- `hash-object`
+- `ls-tree`
+- `show-ref`
+
+Sources:
+- https://github.com/git/git/tree/master/Documentation/technical
+- https://wyag.thb.lt/
 
 ## Installation
 
-Add this line to your application's Gemfile:
-
-```ruby
-gem 'rgit'
-```
-
-And then execute:
-
-    $ bundle install
-
-Or install it yourself as:
-
-    $ gem install rgit
-
-## Usage
-
-TODO: Write usage instructions here
-
-## Development
-
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+Run `./bin/setup` to install all the correct dependencies to `./vendor`. This project assumes you have Ruby and `bundle` available
+on your PATH. `bundle` can be installed by running `gem install bundler` and ensuring the Gems binary dir is in your PATH.
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/rgit.
+Bug reports and pull requests are welcome on GitHub at https://github.com/dgavedissian/rgit.
 
 ## License
 
