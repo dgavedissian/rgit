@@ -15,11 +15,63 @@ module Rgit
     end
     
     def serialize
-      raise "serialize unimplemented"
+      raise NotImplementedError, "#{self.class} has not implemented serialize"
     end
 
     def deserialize(data)
-      raise "deserialize unimplemented"
+      raise NotImplementedError, "#{self.class} has not implemented deserialize"
+    end
+
+    class << self
+      # Will return nil if object_types does not contain type.
+      def create(type, repo, data)
+        object_types = {
+          "commit" => Rgit::Commit,
+          "tree" => Rgit::Tree,
+          # "tag" => Rgit::Tag,
+          "blob" => Rgit::Blob
+        }
+        object_types[type].new(repo, data) if object_types.key?(type)
+      end
+
+      def find(repo, name, type=nil, follow=true)
+        name
+      end
+
+      def read(repo, sha)
+        repo.file("objects", sha[0...2], sha[2...], mode: "rb") do |f|
+          data = Zlib::Inflate.inflate(f.read)
+
+          # Get object type.
+          type_delim = data.index(' ')
+          type = data[0...type_delim]
+        
+          # Read and validate object size.
+          size_delim = data.index("\0", type_delim)
+          size = data[type_delim + 1...size_delim].to_i
+          raise "Malformed object #{sha}: bad length" if size != data.length - size_delim - 1
+
+          object = create(type, repo, data[size_delim + 1...])
+          raise "Unknown type #{type} for object #{sha}" if object.nil?
+          return object
+        end
+
+        nil
+      end
+
+      def write(object, update_repo=true)
+        data = object.serialize
+        data = "#{object.type} #{data.length}\0" + data 
+        sha = Digest::SHA1.hexdigest data
+
+        if update_repo
+          object.repo.file("objects", sha[0...2], sha[2...], mode: "wb", mkdir: true) do |f|
+            f.write(Zlib::Deflate.deflate(data))
+          end
+        end
+
+        sha
+      end
     end
   end
 
@@ -27,6 +79,8 @@ module Rgit
     def type
       "blob"
     end
+
+    attr_accessor :data
 
     def serialize
       @data
@@ -95,22 +149,21 @@ module Rgit
 
     def deserialize(data)
       def tree_parse(data, start)
-        x = data.index(" ", start)
-        raise "Unknown error" unless x - start == 5 || x - start == 6
-
         # Mode.
-        mode = data[start...x]
+        mode_end = data.index(" ", start)
+        raise "Mode should be either 5 or 6 characters in size." unless mode_end - start == 5 || mode_end - start == 6
+        mode = data[start...mode_end]
 
         # Path.
-        y = data.index("\0", x)
-        path = data[x + 1...y]
+        path_end = data.index("\0", mode_end)
+        path = data[mode_end + 1...path_end]
 
         # SHA. 20 bytes.
         # unpack("H*") encodes the binary SHA value as a string.
         # It always returns a singleton list, hence why we index 0.
-        sha = data[y + 1...y + 21].unpack("H*")[0]
+        sha = data[path_end + 1...path_end + 21].unpack("H*")[0]
 
-        return y + 21, Leaf.new(mode, path, sha)
+        return path_end + 21, Leaf.new(mode, path, sha)
       end
 
       pos = 0
@@ -124,61 +177,6 @@ module Rgit
   end
 
   class << self
-    def object_create(type, data, repo)
-      object_class = case type
-      when "commit"
-        Commit
-      when "tree"
-        Tree
-      when "tag"
-        Tag
-      when "blob"
-        Blob
-      else
-        return nil
-      end
-      object_class.new(repo, data)
-    end
-
-    def object_find(repo, name, type=nil, follow=true)
-      name
-    end
-
-    def object_read(repo, sha)
-      repo.file("objects", sha[0...2], sha[2...], mode: "rb") do |f|
-        data = Zlib::Inflate.inflate(f.read)
-
-        # Get object type.
-        type_delim = data.index(' ')
-        type = data[0...type_delim]
-      
-        # Read and validate object size.
-        size_delim = data.index("\0", type_delim)
-        size = data[type_delim + 1...size_delim].to_i
-        raise "Malformed object #{sha}: bad length" if size != data.length - size_delim - 1
-
-        object = object_create(type, data[size_delim + 1...], repo)
-        raise "Unknown type #{type} for object #{sha}" if object.nil?
-        return object
-      end
-
-      nil
-    end
-
-    def object_write(object, update_repo=true)
-      data = object.serialize
-      data = "#{object.type} #{data.length}\0" + data 
-      sha = Digest::SHA1.hexdigest data
-
-      if update_repo
-        object.repo.file("objects", sha[0...2], sha[2...], mode: "wb", mkdir: true) do |f|
-          f.write(Zlib::Deflate.deflate(data))
-        end
-      end
-
-      sha
-    end
-
     def kvlm_parse(data, start=0, dict=nil)
       dict = {} if dict.nil?
 

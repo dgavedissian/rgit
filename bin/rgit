@@ -22,7 +22,7 @@ Main {
     argument 'object'
     def run()
       repo = Rgit::Repo.find
-      object = Rgit::object_read(repo, Rgit::object_find(repo, params["object"].value, type=params["type"].value))
+      object = Rgit::Object.read(repo, Rgit::Object.find(repo, params["object"].value, type=params["type"].value))
       $stdout.write(object.serialize)
     end
   end
@@ -38,9 +38,9 @@ Main {
       repo = params["write"].given? ? Rgit::Repo.find : nil
       data = File.read(params["file"].value)
       type = params["type"].value
-      object = Rgit::object_create(type, data, repo)
+      object = Rgit::Object.create(type, repo, data)
       raise "Unknown type #{type}!" if object.nil?
-      puts Rgit::object_write(object, update_repo=false)
+      puts Rgit::Object.write(object, update_repo=false)
     end
   end
 
@@ -48,12 +48,52 @@ Main {
     argument 'object'
     def run
       repo = Rgit::Repo.find
-      object = Rgit::object_read(repo, Rgit::object_find(repo, params["object"].value, type="tree"))
+      object = Rgit::Object.read(repo, Rgit::Object.find(repo, params["object"].value, type="tree"))
       object.items.each do |item|
         mode = '0' * (6 - item.mode.length) + item.mode
-        item_object = Rgit::object_read(repo, item.sha)
+        item_object = Rgit::Object.read(repo, item.sha)
         puts "#{mode} #{item_object.type} #{item.sha}\t#{item.path}"
       end
+    end
+  end
+
+  mode 'checkout' do
+    argument 'commit'
+    argument 'path'
+    def run
+      repo = Rgit::Repo.find
+      object = Rgit::Object.read(repo, Rgit::Object.find(repo, params["commit"].value))
+
+      # If we have a commit, read it's tree.
+      object = Rgit::Object.read(repo, object.data["tree"]) if object.class == Rgit::Commit
+
+      # Verify the directory is empty first, and create it if it doesn't exist.
+      out_dir = params["path"].value
+      if Dir.exists?(out_dir)
+        raise "#{out_dir} is not a directory." if !File.directory?(out_dir)
+        raise "#{out_dir} not empty." if !Dir.children(out_dir).empty?
+      else
+        Dir.mkdir(out_dir)
+      end
+
+      def tree_checkout(repo, tree, path)
+        tree.items.each do |item|
+          object = Rgit::Object.read(repo, item.sha)
+          dest_path = File.join(path, item.path)
+
+          case object
+          when Rgit::Tree
+            Dir.mkdir(dest_path)
+            tree_checkout(repo, object, dest_path)
+          when Rgit::Blob
+            File.open(dest_path, "wb") do |f|
+              f.write(object.data)
+            end
+          end
+        end
+      end
+
+      tree_checkout(repo, object, out_dir)
     end
   end
 
@@ -68,7 +108,7 @@ Main {
         return if seen.key?(sha)
         seen[sha] = true
 
-        commit = Rgit::object_read(repo, sha)
+        commit = Rgit::Object.read(repo, sha)
         raise "#{sha} is not a commit, but instead an instance of #{commit.class}!" unless commit.class == Rgit::Commit
 
         # Display commit.
@@ -87,7 +127,7 @@ Main {
         end
       end
 
-      visit_commit(repo, Rgit::object_find(repo, params["commit"].value), {})
+      visit_commit(repo, Rgit::Object.find(repo, params["commit"].value), {})
     end
   end
 
